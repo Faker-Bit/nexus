@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------
+# dependencies
+# ---------------------------------------------------------------------------
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+
+# ---------------------------------------------------------------------------
+# next.js
+# ---------------------------------------------------------------------------
+/.next/
+/out/
+next-env.d.ts
+
+# ---------------------------------------------------------------------------
+# production build output
+# ---------------------------------------------------------------------------
+/build
+
+# ---------------------------------------------------------------------------
+# database
+#
+# The local SQLite file is disposable — `npm run db:reset` rebuilds it.
+# prisma/migrations/ is deliberately COMMITTED: `prisma migrate deploy` replays
+# those migrations to build the production schema on Vercel.
+# ---------------------------------------------------------------------------
+prisma/*.db
+prisma/*.db-journal
+
+# ---------------------------------------------------------------------------
+# environment variables
+#
+# `.env` is never committed. `.env.example` documents every variable the app
+# reads and IS committed — the leading `!` re-includes it from the `.env*` rule
+# below, so it must stay last in this block.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# vercel
+# ---------------------------------------------------------------------------
+.vercel
+
+# ---------------------------------------------------------------------------
+# logs and local scratch
+# ---------------------------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---------------------------------------------------------------------------
+# editor / OS
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.pem
+*.tsbuildinfo
+/coverage
+.idea
+.vscode/*
+!.vscode/extensions.json

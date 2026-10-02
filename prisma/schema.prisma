@@ -1,0 +1,410 @@
+/*
+ * NEXUS — Creator marketplace data model
+ *
+ * Every model below is provider-portable: enum-like columns are `String` plus
+ * validation in `src/lib/constants.ts`, and there are no SQLite-only or
+ * Postgres-only features, so the same schema runs both locally and in production.
+ *
+ * The datasource provider is written to match `DATABASE_URL` by
+ * `scripts/db-provider.mjs` (runs on `predev`, `prebuild`, `postinstall`).
+ * Prisma requires the provider to be a literal, so this line is the one place
+ * that has to differ between a local SQLite file and hosted Postgres — and it
+ * keeps itself in sync. Do not hand-edit it.
+ */
+
+generator client {
+  provider = "prisma-client-js"
+  // Vercel serverless functions run on Amazon Linux 3 / Debian 12. Naming the
+  // targets means the query engine is present in the lambda rather than relying
+  // on `native` resolving at build time.
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String?
+  handle       String    @unique
+  displayName  String
+  avatarUrl    String?
+  coverUrl     String?
+  bio          String?
+  location     String?
+  website      String?
+  github       String?
+  twitter      String?
+  discord      String?
+
+  isCreator        Boolean @default(false)
+  verified         Boolean @default(false)
+  reputation       Int     @default(0)
+  ratingAvg        Float   @default(0)
+  ratingCount      Int     @default(0)
+  totalSales       Int     @default(0)
+  totalEarningsCents Int   @default(0)
+  totalSpentCents    Int   @default(0)
+  payoutAddress   String?
+  defaultChain    String  @default("ethereum")
+
+  status        String   @default("active")
+  suspendedAt   DateTime?
+  suspensionNote String?
+  failedLogins  Int      @default(0)
+  lastLoginAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects        Project[]
+  orders          Order[]      @relation("BuyerOrders")
+  sales           Order[]      @relation("SellerOrders")
+  reviews         Review[]
+  offers          Offer[]
+  wallets         Wallet[]
+  transactions    Transaction[]
+  likes           ProjectLike[]
+  followers       Follow[]     @relation("Following")
+  following       Follow[]     @relation("Followers")
+  downloads       Download[]
+  analyticsEvents AnalyticsEvent[]
+  notifications   Notification[]
+
+  @@index([createdAt])
+  @@index([reputation])
+  @@index([isCreator])
+  @@index([isCreator, totalEarningsCents])
+  @@index([isCreator, createdAt])
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String
+  chain     String   @default("ethereum")
+  address   String
+  label     String?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chain, address])
+  @@index([userId])
+}
+
+model Project {
+  id       String @id @default(cuid())
+  slug     String @unique
+  title    String
+  tagline  String
+  summary  String?
+  description String
+
+  category    String
+  tagsString  String  @default("")
+  language    String?
+  license     String  @default("proprietary")
+  version     String  @default("1.0.0")
+  status      String  @default("published")
+
+  priceCents      Int     @default(0)
+  currency        String  @default("USDC")
+  chain           String  @default("base")
+  acceptsOffers   Boolean @default(true)
+  acceptsMeme     Boolean @default(false)
+  memeToken       String?
+  originalPriceCents Int?
+  saleCount       Int     @default(0)
+  featured        Boolean @default(false)
+  trendingScore   Float   @default(0)
+
+  coverImage   String?
+  previewVideo String?
+  demoUrl      String?
+  repoUrl      String?
+  docsUrl      String?
+  websiteUrl   String?
+  fileName     String?
+  fileSizeBytes Int?
+  fileKey      String?
+  downloadCount Int    @default(0)
+
+  viewCount   Int   @default(0)
+  likeCount   Int   @default(0)
+  ratingAvg   Float @default(0)
+  ratingCount Int   @default(0)
+
+  creatorId String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  publishedAt DateTime?
+
+  creator    User             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  assets     Asset[]
+  tags       Tag[]
+  offers     Offer[]
+  orders     Order[]
+  reviews    Review[]
+  likes      ProjectLike[]
+  downloads  Download[]
+  analyticsEvents AnalyticsEvent[]
+
+  // Discovery: every list route filters on status and then sorts on one column,
+  // so each sort mode gets a matching composite index.
+  @@index([status, publishedAt])
+  @@index([status, trendingScore])
+  @@index([status, priceCents])
+  @@index([status, saleCount])
+  @@index([status, category])
+  @@index([category, trendingScore])
+  @@index([status, creatorId])
+  @@index([creatorId, status, updatedAt])
+  @@index([creatorId, saleCount])
+  @@index([category])
+  @@index([trendingScore])
+  @@index([creatorId])
+  @@index([priceCents])
+  @@index([saleCount])
+  @@index([featured, status])
+}
+
+model Asset {
+  id        String   @id @default(cuid())
+  projectId String
+  kind      String   @default("screenshot")
+  url       String
+  alt       String?
+  width     Int?
+  height    Int?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, position])
+}
+
+model Tag {
+  id       String @id @default(cuid())
+  name     String
+  projectId String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([name, projectId])
+  @@index([projectId])
+  @@index([name])
+}
+
+model Offer {
+  id          String   @id @default(cuid())
+  projectId   String
+  buyerId     String
+  amountCents Int
+  currency    String   @default("USDC")
+  chain       String   @default("base")
+  memecoin    String?
+  message     String?
+  status      String   @default("pending")
+  expiresAt   DateTime
+  respondedAt DateTime?
+  orderId     String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  buyer   User    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  @@index([projectId, status])
+  @@index([buyerId, status])
+  @@index([buyerId, createdAt])
+}
+
+model Order {
+  id             String   @id @default(cuid())
+  reference      String   @unique
+  projectId      String
+  buyerId        String
+  sellerId       String
+  offerId        String?  @unique
+
+  listPriceCents Int
+  amountCents    Int
+  platformFeeCents Int    @default(0)
+  sellerPayoutCents Int
+  currency       String   @default("USDC")
+  chain          String   @default("base")
+  tokenAddress   String?
+  memecoin       Boolean  @default(false)
+
+  status       String    @default("pending")
+  paymentIntentId String?
+  txHash       String?
+  blockNumber   Int?
+  paidAt       DateTime?
+  refundedAt   DateTime?
+  failureReason String?
+
+  licenseType String   @default("standard")
+  downloadCount Int    @default(0)
+  maxDownloads Int?
+  accessToken  String? @unique
+  licenseKey   String?
+  ipHash       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  buyer     User    @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller    User    @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Cascade)
+  review    Review?
+  transactions Transaction[]
+  downloads Download[]
+  offer     Offer?
+
+  @@index([buyerId, createdAt])
+  @@index([buyerId, status])
+  @@index([sellerId, createdAt])
+  @@index([sellerId, status])
+  @@index([status])
+  @@index([projectId])
+  @@index([projectId, status])
+  @@index([status, createdAt])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  orderId     String?
+  userId      String
+  type        String
+  direction   String   @default("out")
+  amountCents Int
+  currency    String
+  chain       String
+  tokenAddress String?
+  txHash      String?
+  fromAddress String?
+  toAddress   String?
+  status      String   @default("pending")
+  blockNumber Int?
+  memo        String?
+  createdAt   DateTime @default(now())
+  confirmedAt DateTime?
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  // Settlement updates every row of an order in one statement.
+  @@index([orderId])
+  @@index([userId, type, status])
+  @@index([userId, createdAt, type])
+  @@index([txHash])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  projectId String
+  orderId   String   @unique
+  authorId  String
+  rating    Int
+  title     String?
+  body      String
+  helpful   Int      @default(0)
+  sellerReply String?
+  repliedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([authorId])
+  @@index([projectId, rating])
+}
+
+model ProjectLike {
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, projectId])
+  @@index([projectId])
+}
+
+model Follow {
+  followerId String
+  followingId String
+  createdAt  DateTime @default(now())
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}
+
+model Download {
+  id        String   @id @default(cuid())
+  orderId   String
+  userId    String
+  projectId String
+  ipHash    String?
+  createdAt DateTime @default(now())
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([projectId, createdAt])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  type      String
+  projectId String?
+  userId    String?
+  sessionId String?
+  path      String?
+  referrer  String?
+  meta      String?
+  createdAt DateTime @default(now())
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([type, createdAt])
+  @@index([createdAt])
+  // Trending recomputation filters type + window, grouped by project.
+  @@index([type, createdAt, projectId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  meta      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+  @@index([userId, createdAt])
+}

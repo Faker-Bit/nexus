@@ -1,0 +1,36 @@
+# Normalise line endings so the repo behaves the same on Windows, macOS and Linux.
+* text=auto eol=lf
+
+# Files that must keep native line endings
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Binary — never touch
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.avif  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.zip   binary
+*.gz    binary
+*.pdf   binary
+*.db    binary
+*.sqlite binary
+
+# Lockfiles keep LF and are never merged by hand
+package-lock.json text eol=lf
+*.prisma text eol=lf
+*.sql    text eol=lf
+
+# Generated / cache — ignored by git anyway, marked so tooling skips them
+.next/            linguist-generated=true -diff
+node_modules/     linguist-generated=true -diff
+prisma/migrations/ linguist-generated=true
